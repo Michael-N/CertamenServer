@@ -7,7 +7,8 @@ var express = require('express');
 var router = express.Router();
 var schema = require("../../schemas/scoreTestRequestSchema.js");
 var mongoose = require('mongoose');
-var ObjectId = require('mongodb').ObjectID;
+var questionModelAccess = require("../../models/questionModel.js");
+var ObjectID = require('mongodb').ObjectID;
 /*
 * Title: scoreTest
 * Description: accepts a list of json object where each object contains the ID of a question and the proposed answer
@@ -17,6 +18,7 @@ var ObjectId = require('mongodb').ObjectID;
 *              back otherwise.
 * */
 var scoreRequestModel = mongoose.model("scoreTest",schema);
+var questionModel = questionModelAccess.getModel();//get the reference to the shared model
 mongoose.connect('mongodb://localhost:27017/CertamenDatabase');
 
 router.get("/", function(req, res, next) {
@@ -30,35 +32,55 @@ router.get("/", function(req, res, next) {
             }
             //get the ids from the request
             var question_ids = req.body.map((item)=>{
-                console.log(ObjectId(item._id));
-                return ObjectId(item._id);
+                return new ObjectID(item._id);
             });
             //query for the response
-            scoreRequestModel.find({_id: {$in: question_ids}}).exec((error,docs)=>{
-                console.log(docs);
-                if(error){
+            questionModel.find({_id: {$in: question_ids}}, (error,docs)=>{
+                //log errors: if error or not all the ids could be found...
+                if(error ){
                     throw error;
+                }else if(docs.length !== req.body.length){
+                    throw "The database results quantity does not match the quantity of questions requested; Note do not submit repete questions";
                 }
-
                 //iterate over the tests and pickout correct vs incorrect (update database statistics later)
-                correct_ids = [];
-                incorrect_ids=[];
-                for(let i=0; i<docs.length;i++){
-                    if (docs[i].correctAnswer === req.body[i].answer){
+                var correct_ids = [];
+                var incorrect_ids=[];
+                for(var i=0; i<docs.length;i++){
+                    if (docs[i].correctAnswer === req.body[i].userAnswer){
                         correct_ids.push(docs[i]._id);
                     }else{
                         incorrect_ids.push(docs[i]._id);
                     }
                 }
 
+                //send the api response
                 console.log(`[scoreTestRequest.js] successfully scored a test`);
                 res.send(scoreRequest.success(incorrect_ids,correct_ids));
-
                 //Update the info in the database accordingly (this can be done after the response is sent)
                 for(item in correct_ids){
-                    scoreRequestModel.updateOne({_id:ObjectId(item._id)},{$inc:{}})
+                    questionModel.findOneAndUpdate(
+                        item._id,
+                        {$inc:{"meta.totalTimesAnsweredCorrectly":1,"meta.totalTimesAnswered":1}},
+                        (error,res)=>{
+                            if(error){
+                                throw error;
+                            }
+                        }
+                    );
                 }
-
+                //Update the info in the database accordingly (this can be done after the response is sent)
+                for(item in incorrect_ids){
+                    questionModel.findOneAndUpdate(
+                        item._id,
+                        {$inc:{"meta.totalTimesAnswered":1}},
+                        (error,res)=>{
+                            if(error){
+                                throw error;
+                            }
+                        }
+                    );
+                }
+                //pass control
                 next();
 
             });

@@ -1,3 +1,8 @@
+/*
+*   Code By Michael Sherif Naguib
+*   Started September 29, 2018
+*   Studying @ University of Tulsa
+* */
 var express = require('express');
 var path = require('path');
 var cookieParser = require('cookie-parser');
@@ -10,6 +15,7 @@ var usersRouter = require('./routes/users');
 var scoreTestRouter = require('./routes/api/scoreTest.js');
 var generateTestRouter = require('./routes/api/generateTest.js');
 var insertQuestionRouter = require('./routes/api/insertQuestion.js');
+var lookupQuestionsRouter = require('./routes/api/lookupQuestions.js');
 
 var app = express();
 
@@ -26,6 +32,6 @@ app.use(bodyParser.json());
 app.use('/api/scoretest', scoreTestRouter);
 app.use('/api/generatetest', generateTestRouter);
 app.use('/api/insertquestion', insertQuestionRouter);
-
+app.use('/api/lookupquestions', lookupQuestionsRouter);
 
 module.exports = app;
